@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Daily Tracker</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --bg: #0f0f13;
+      --card: #1a1a2e;
+      --border: #2a2a3e;
+      --accent: #a78bfa;
+      --accent2: #7c3aed;
+      --text: #e8e8f0;
+      --muted: #6b6b8a;
+      --green: #34d399;
+    }
+
+    body {
+      font-family: -apple-system, 'SF Pro Display', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 100px;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      padding: 20px 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .title { font-size: 20px; font-weight: 700; }
+
+    .points-display { text-align: right; }
+    .points-big { font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .points-label { font-size: 11px; color: var(--muted); }
+
+    .progress-bar {
+      background: var(--border);
+      border-radius: 6px;
+      height: 6px;
+      margin-bottom: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    }
+    .progress-fill.done {
+      background: linear-gradient(90deg, #10b981, var(--green));
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 0;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-top: 14px;
+    }
+    .tab {
+      flex: 1;
+      padding: 9px 0;
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .tab.active { background: var(--accent); color: #fff; }
+
+    /* Content */
+    .content { padding: 16px; }
+
+    /* Task card */
+    .task {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .task.checked {
+      background: linear-gradient(135deg, #1e1b4b, #1a1a2e);
+      border-color: var(--accent2);
+    }
+    .task:active { transform: scale(0.98); }
+
+    .checkbox {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s;
+      font-size: 13px;
+    }
+    .task.checked .checkbox {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .task-emoji { font-size: 20px; }
+    .task-name {
+      flex: 1;
+      font-size: 14px;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+    .task.checked .task-name {
+      color: var(--accent);
+      text-decoration: line-through;
+    }
+
+    .task-points {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .task.checked .task-points { color: var(--accent); }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: var(--border);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 0 0 4px;
+      line-height: 1;
+    }
+
+    /* Add task */
+    .add-task-btn {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    .add-task-btn:active { background: var(--card); }
+
+    .add-form {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 8px;
+    }
+    .add-form input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 8px;
+      outline: none;
+    }
+    .add-form input:focus { border-color: var(--accent2); }
+    .form-row { display: flex; gap: 8px; align-items: center; }
+    .form-row input { margin-bottom: 0; }
+    .emoji-input { width: 52px !important; text-align: center; font-size: 18px; flex-shrink: 0; }
+    .points-input { width: 70px !important; flex-shrink: 0; }
+    .form-btns { display: flex; gap: 6px; margin-left: auto; }
+    .btn-cancel {
+      padding: 8px 14px;
+      background: var(--border);
+      color: var(--muted);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn-add {
+      padding: 8px 16px;
+      background: var(--accent2);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* Success banner */
+    .success-banner {
+      background: linear-gradient(135deg, #1e1b4b, #1a1a2e);
+      border: 1px solid var(--accent2);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 8px;
+      display: none;
+    }
+    .success-banner.show { display: block; }
+    .success-emoji { font-size: 28px; margin-bottom: 6px; }
+    .success-title { font-weight: 700; color: var(--accent); }
+    .success-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* History */
+    .history-summary {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .history-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .history-total { font-size: 28px; font-weight: 800; color: var(--accent); }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+    .history-date { font-size: 14px; }
+    .history-date.today { color: var(--accent); }
+    .history-tasks { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .history-pts { font-size: 18px; font-weight: 700; color: var(--accent); }
+    .history-pts-label { font-size: 11px; color: var(--muted); text-align: right; }
+
+    .empty { text-align: center; color: var(--border); padding: 40px 0; font-size: 14px; }
+
+    .reset-btn {
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      color: var(--border);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="title">Мой трекер</div>
+      <div class="date" id="dateLabel"></div>
+    </div>
+    <div class="points-display">
+      <div class="points-big" id="earnedPts">0</div>
+      <div class="points-label">из <span id="totalPts">0</span> баллов</div>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="progress-meta">
+    <span id="tasksMeta">0/0 задач</span>
+    <span id="pctMeta">0%</span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('today')">Сегодня</button>
+    <button class="tab" onclick="switchTab('history')">История</button>
+  </div>
+</div>
+
+<div class="content" id="todayTab">
+  <div id="taskList"></div>
+  <div id="addSection">
+    <button class="add-task-btn" onclick="showAddForm()">+ Добавить задачу</button>
+  </div>
+  <div class="success-banner" id="successBanner">
+    <div class="success-emoji">🎉</div>
+    <div class="success-title">Все задачи выполнены!</div>
+    <div class="success-sub" id="successSub"></div>
+  </div>
+  <button class="reset-btn" onclick="resetDay()">Сбросить день</button>
+</div>
+
+<div class="content" id="historyTab" style="display:none">
+  <div class="history-summary">
+    <div class="history-label">За последние 7 дней</div>
+    <div class="history-total" id="weekTotal">0 <span style="font-size:14px;font-weight:400;color:var(--muted)">баллов</span></div>
+  </div>
+  <div id="historyList"></div>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const DEFAULT_TASKS = [
+  { id: 1, name: "Утренняя зарядка", points: 10, emoji: "🏃" },
+  { id: 2, name: "Чтение 30 минут", points: 15, emoji: "📖" },
+  { id: 3, name: "Питьевой режим (2л)", points: 10, emoji: "💧" },
+  { id: 4, name: "Медитация", points: 20, emoji: "🧘" },
+  { id: 5, name: "Планирование дня", points: 10, emoji: "📋" },
+];
+
+const TODAY = new Date().toISOString().split("T")[0];
+
+function load(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
+}
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+let tasks = load("tasks", DEFAULT_TASKS);
+let checked = (() => {
+  const d = load("checked_date", "");
+  if (d !== TODAY) { save("checked_date", TODAY); save("checked", {}); return {}; }
+  return load("checked", {});
+})();
+let history = load("history", []);
+
+function saveState() {
+  save("tasks", tasks);
+  save("checked", checked);
+  save("checked_date", TODAY);
+  // update history
+  const earned = tasks.filter(t => checked[t.id]).reduce((s,t) => s+t.points, 0);
+  const others = history.filter(h => h.date !== TODAY);
+  const updated = [{ date: TODAY, points: earned, completed: Object.values(checked).filter(Boolean).length, total: tasks.length }, ...others].slice(0, 30);
+  history = updated;
+  save("history", history);
+}
+
+function getEarned() { return tasks.filter(t => checked[t.id]).reduce((s,t) => s+t.points, 0); }
+function getTotal() { return tasks.reduce((s,t) => s+t.points, 0); }
+
+function updateHeader() {
+  const earned = getEarned(), total = getTotal();
+  const pct = total ? Math.round(earned/total*100) : 0;
+  document.getElementById("earnedPts").textContent = earned;
+  document.getElementById("totalPts").textContent = total;
+  const fill = document.getElementById("progressFill");
+  fill.style.width = pct + "%";
+  fill.className = "progress-fill" + (pct === 100 ? " done" : "");
+  document.getElementById("tasksMeta").textContent = `${tasks.filter(t=>checked[t.id]).length}/${tasks.length} задач`;
+  document.getElementById("pctMeta").textContent = pct + "%";
+  document.getElementById("dateLabel").textContent = new Date().toLocaleDateString("ru-RU", {day:"numeric",month:"long"});
+
+  const banner = document.getElementById("successBanner");
+  if (pct === 100 && tasks.length > 0) {
+    banner.classList.add("show");
+    document.getElementById("successSub").textContent = `+${earned} баллов за сегодня`;
+  } else {
+    banner.classList.remove("show");
+  }
+}
+
+function renderTasks() {
+  const list = document.getElementById("taskList");
+  list.innerHTML = "";
+  tasks.forEach(task => {
+    const done = !!checked[task.id];
+    const div = document.createElement("div");
+    div.className = "task" + (done ? " checked" : "");
+    div.innerHTML = `
+      <div class="checkbox">${done ? "✓" : ""}</div>
+      <span class="task-emoji">${task.emoji}</span>
+      <span class="task-name">${task.name}</span>
+      <span class="task-points">+${task.points}</span>
+      <button class="delete-btn" onclick="deleteTask(event,${task.id})">×</button>
+    `;
+    div.addEventListener("click", () => toggleTask(task.id));
+    list.appendChild(div);
+  });
+  updateHeader();
+}
+
+function toggleTask(id) {
+  checked[id] = !checked[id];
+  if (!checked[id]) delete checked[id];
+  saveState();
+  renderTasks();
+  if (tg) tg.HapticFeedback?.impactOccurred("light");
+}
+
+function deleteTask(e, id) {
+  e.stopPropagation();
+  tasks = tasks.filter(t => t.id !== id);
+  delete checked[id];
+  saveState();
+  renderTasks();
+}
+
+function resetDay() {
+  if (confirm("Сбросить все задачи на сегодня?")) {
+    checked = {};
+    saveState();
+    renderTasks();
+  }
+}
+
+// Add form
+let showingForm = false;
+function showAddForm() {
+  if (showingForm) return;
+  showingForm = true;
+  const sec = document.getElementById("addSection");
+  sec.innerHTML = `
+    <div class="add-form">
+      <div class="form-row">
+        <input class="emoji-input" id="newEmoji" value="⭐" maxlength="2">
+        <input id="newName" placeholder="Название задачи" style="flex:1">
+        <input class="points-input" id="newPoints" type="number" value="10" min="1" max="999">
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <div class="form-btns">
+          <button class="btn-cancel" onclick="hideAddForm()">Отмена</button>
+          <button class="btn-add" onclick="addTask()">Добавить</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById("newName").focus();
+}
+
+function hideAddForm() {
+  showingForm = false;
+  const sec = document.getElementById("addSection");
+  sec.innerHTML = `<button class="add-task-btn" onclick="showAddForm()">+ Добавить задачу</button>`;
+}
+
+function addTask() {
+  const name = document.getElementById("newName").value.trim();
+  if (!name) return;
+  const emoji = document.getElementById("newEmoji").value || "⭐";
+  const points = parseInt(document.getElementById("newPoints").value) || 10;
+  const id = Date.now();
+  tasks.push({ id, name, points, emoji });
+  saveState();
+  hideAddForm();
+  renderTasks();
+}
+
+// Tabs
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach((t,i) => t.classList.toggle("active", (i===0&&tab==="today")||(i===1&&tab==="history")));
+  document.getElementById("todayTab").style.display = tab === "today" ? "" : "none";
+  document.getElementById("historyTab").style.display = tab === "history" ? "" : "none";
+  if (tab === "history") renderHistory();
+}
+
+function renderHistory() {
+  const weekPts = history.slice(0,7).reduce((s,h) => s+h.points, 0);
+  document.getElementById("weekTotal").innerHTML = `${weekPts} <span style="font-size:14px;font-weight:400;color:var(--muted)">баллов</span>`;
+  const list = document.getElementById("historyList");
+  if (!history.length) { list.innerHTML = '<div class="empty">История пуста — выполни задачи сегодня!</div>'; return; }
+  list.innerHTML = history.slice(0,14).map(h => {
+    const isToday = h.date === TODAY;
+    const d = new Date(h.date).toLocaleDateString("ru-RU", {day:"numeric", month:"short"});
+    return `<div class="history-item">
+      <div>
+        <div class="history-date${isToday?" today":""}">${isToday?"Сегодня":d}</div>
+        <div class="history-tasks">${h.completed}/${h.total} задач</div>
+      </div>
+      <div>
+        <div class="history-pts">+${h.points}</div>
+        <div class="history-pts-label">баллов</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+renderTasks();
+</script>
+</body>
+</html>
