@@ -208,8 +208,11 @@ function getDateStr(offset=0) {
 function load(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch{return def;} }
 function save(k,v){ localStorage.setItem(k,JSON.stringify(v)); }
 
-let dayOffset = 0;
+// Reset to today if app was opened on a new day
+const LAST_OPEN = load("last_open_date", null);
 const TODAY = getDateStr(0);
+if (LAST_OPEN !== TODAY) { save("last_open_date", TODAY); }
+let dayOffset = 0;
 let activeFilter = 'all';
 let newPriority = 'green';
 let newStatus = null;
