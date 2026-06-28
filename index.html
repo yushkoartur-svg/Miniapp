@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Daily Tracker</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --bg: #0f0f13; --card: #1a1a2e; --border: #2a2a3e;
+      --accent: #a78bfa; --accent2: #7c3aed; --text: #e8e8f0;
+      --muted: #6b6b8a; --green: #34d399;
+    }
+    body { font-family: -apple-system, 'SF Pro Display', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 100px; }
+
+    .header { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 16px 16px 0; border-bottom: 1px solid var(--border); }
+    .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .title { font-size: 20px; font-weight: 700; }
+    .points-display { text-align: right; }
+    .points-big { font-size: 28px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .points-label { font-size: 11px; color: var(--muted); }
+
+    .day-switcher { display: flex; align-items: center; justify-content: space-between; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; }
+    .day-nav { background: none; border: none; color: var(--accent); font-size: 20px; cursor: pointer; padding: 0 8px; line-height: 1; }
+    .day-nav:disabled { color: var(--border); }
+    .day-label { text-align: center; }
+    .day-name { font-size: 15px; font-weight: 700; }
+    .day-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .progress-bar { background: var(--border); border-radius: 6px; height: 6px; margin-bottom: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent2), var(--accent)); transition: width 0.5s; }
+    .progress-fill.done { background: linear-gradient(90deg, #10b981, var(--green)); }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+    .tabs { display: flex; gap: 4px; margin-top: 12px; }
+    .tab { flex: 1; padding: 9px 0; background: transparent; color: var(--muted); border: none; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .tab.active { background: var(--accent); color: #fff; }
+
+    .content { padding: 16px; }
+
+    /* Filters */
+    .filters { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 2px; }
+    .filter-btn { flex-shrink: 0; padding: 5px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; color: var(--muted); font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .filter-btn.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+
+    /* Task */
+    .task { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; user-select: none; }
+    .task.checked { background: linear-gradient(135deg, #1e1b4b, #1a1a2e); border-color: var(--accent2); opacity: 0.7; }
+    .task.priority-red { border-left: 3px solid #ef4444; }
+    .task.priority-yellow { border-left: 3px solid #f59e0b; }
+    .task.priority-green { border-left: 3px solid #10b981; }
+    .task:active { transform: scale(0.98); }
+
+    .checkbox { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; margin-top: 1px; }
+    .task.checked .checkbox { background: var(--accent); border-color: var(--accent); }
+
+    .task-body { flex: 1; min-width: 0; }
+    .task-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .task-emoji { font-size: 16px; }
+    .task-name { font-size: 14px; color: var(--text); flex: 1; }
+    .task.checked .task-name { text-decoration: line-through; color: var(--muted); }
+    .task-points { font-size: 12px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+    .task.checked .task-points { color: var(--accent); }
+
+    .task-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+    .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+    .badge-red { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .badge-yellow { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .badge-green { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-wait { background: rgba(167,139,250,0.15); color: var(--accent); }
+    .badge-delegate { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .badge-deadline { background: rgba(239,68,68,0.15); color: #f87171; }
+    .badge-postpone { background: rgba(107,107,138,0.2); color: var(--muted); }
+
+    .delete-btn { background: none; border: none; color: var(--border); font-size: 18px; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
+
+    .future-note { background: var(--card); border: 1px solid var(--accent2); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: var(--accent); text-align: center; }
+
+    .add-task-btn { width: 100%; padding: 12px; background: transparent; border: 1px dashed var(--border); border-radius: 14px; color: var(--muted); font-size: 14px; cursor: pointer; margin-bottom: 8px; }
+
+    .add-form { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 8px; }
+    .add-form input, .add-form select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 14px; margin-bottom: 8px; outline: none; }
+    .add-form input:focus, .add-form select:focus { border-color: var(--accent2); }
+    .add-form select option { background: #1a1a2e; }
+    .form-row { display: flex; gap: 8px; }
+    .form-row input { margin-bottom: 0; }
+    .emoji-inp { width: 52px !important; text-align: center; font-size: 18px; flex-shrink: 0; }
+    .pts-inp { width: 70px !important; flex-shrink: 0; }
+    .form-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .picker-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .pick-btn { padding: 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; cursor: pointer; color: var(--text); }
+    .pick-btn.selected { border-color: var(--accent); background: rgba(167,139,250,0.15); }
+    .form-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+    .btn-cancel { padding: 8px 14px; background: var(--border); color: var(--muted); border: none; border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .btn-add { padding: 8px 16px; background: var(--accent2); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+
+    .success-banner { background: linear-gradient(135deg, #1e1b4b, #1a1a2e); border: 1px solid var(--accent2); border-radius: 14px; padding: 16px; text-align: center; margin-top: 8px; display: none; }
+    .success-banner.show { display: block; }
+    .success-emoji { font-size: 28px; margin-bottom: 6px; }
+    .success-title { font-weight: 700; color: var(--accent); }
+    .success-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    .history-summary { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+    .history-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+    .history-date { font-size: 14px; }
+    .history-date.today { color: var(--accent); }
+    .history-date.future { color: var(--green); }
+    .history-tasks { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .history-pts { font-size: 18px; font-weight: 700; color: var(--accent); }
+    .history-pts-label { font-size: 11px; color: var(--muted); text-align: right; }
+    .empty { text-align: center; color: var(--border); padding: 40px 0; font-size: 14px; }
+    .reset-btn { width: 100%; padding: 10px; background: transparent; border: none; color: var(--border); font-size: 12px; cursor: pointer; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="title">Мой трекер</div>
+    <div class="points-display">
+      <div class="points-big" id="earnedPts">0</div>
+      <div class="points-label">из <span id="totalPts">0</span> баллов</div>
+    </div>
+  </div>
+  <div class="day-switcher">
+    <button class="day-nav" id="prevDay" onclick="changeDay(-1)">‹</button>
+    <div class="day-label">
+      <div class="day-name" id="dayName">Сегодня</div>
+      <div class="day-date" id="dayDate"></div>
+    </div>
+    <button class="day-nav" id="nextDay" onclick="changeDay(1)">›</button>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="progress-meta">
+    <span id="tasksMeta">0/0 задач</span>
+    <span id="pctMeta">0%</span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('today')">Задачи</button>
+    <button class="tab" onclick="switchTab('history')">История</button>
+  </div>
+</div>
+
+<div class="content" id="todayTab">
+  <div id="futureNote" class="future-note" style="display:none">📅 Задачи запланированы — отметить можно когда наступит день</div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('all')">Все</button>
+    <button class="filter-btn" onclick="setFilter('red')">🔴 Срочные</button>
+    <button class="filter-btn" onclick="setFilter('yellow')">🟡 Важные</button>
+    <button class="filter-btn" onclick="setFilter('wait')">⏳ Жду</button>
+    <button class="filter-btn" onclick="setFilter('delegate')">📤 Делег.</button>
+    <button class="filter-btn" onclick="setFilter('deadline')">📅 Дедлайн</button>
+  </div>
+
+  <div id="taskList"></div>
+  <div id="addSection">
+    <button class="add-task-btn" onclick="showAddForm()">+ Добавить задачу</button>
+  </div>
+  <div class="success-banner" id="successBanner">
+    <div class="success-emoji">🎉</div>
+    <div class="success-title">Все задачи выполнены!</div>
+    <div class="success-sub" id="successSub"></div>
+  </div>
+  <button class="reset-btn" onclick="resetDay()">Сбросить день</button>
+</div>
+
+<div class="content" id="historyTab" style="display:none">
+  <div class="history-summary">
+    <div class="history-label">За последние 7 дней</div>
+    <div class="history-total" id="weekTotal">0 <span style="font-size:14px;font-weight:400;color:var(--muted)">баллов</span></div>
+  </div>
+  <div id="historyList"></div>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const PRIORITIES = [
+  { id: 'red',    label: '🔴 Срочное важное',  cls: 'badge-red',      taskCls: 'priority-red' },
+  { id: 'yellow', label: '🟡 Важное',           cls: 'badge-yellow',   taskCls: 'priority-yellow' },
+  { id: 'green',  label: '🟢 Обычное',          cls: 'badge-green',    taskCls: 'priority-green' },
+];
+const STATUSES = [
+  { id: 'wait',     label: '⏳ Жду',        cls: 'badge-wait' },
+  { id: 'delegate', label: '📤 Делегировать', cls: 'badge-delegate' },
+  { id: 'deadline', label: '📅 Дедлайн',    cls: 'badge-deadline' },
+  { id: 'postpone', label: '⏸ Отложить',    cls: 'badge-postpone' },
+];
+const PRIORITY_ORDER = { red: 0, yellow: 1, green: 2, undefined: 3 };
+
+const DEFAULT_TASKS = [
+  { id: 1, name: "Утренняя зарядка", points: 10, emoji: "🏃", priority: 'green', status: null },
+  { id: 2, name: "Чтение 30 минут",  points: 15, emoji: "📖", priority: 'yellow', status: null },
+  { id: 3, name: "Питьевой режим",   points: 10, emoji: "💧", priority: 'green', status: null },
+  { id: 4, name: "Медитация",        points: 20, emoji: "🧘", priority: 'yellow', status: null },
+  { id: 5, name: "Планирование дня", points: 10, emoji: "📋", priority: 'red',   status: null },
+];
+
+function getDateStr(offset=0) {
+  const d = new Date(); d.setDate(d.getDate()+offset);
+  return d.toISOString().split("T")[0];
+}
+function load(k,def){ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch{return def;} }
+function save(k,v){ localStorage.setItem(k,JSON.stringify(v)); }
+
+// Reset to today if app was opened on a new day
+const LAST_OPEN = load("last_open_date", null);
+const TODAY = getDateStr(0);
+if (LAST_OPEN !== TODAY) { save("last_open_date", TODAY); }
+let dayOffset = 0;
+let activeFilter = 'all';
+let newPriority = 'green';
+let newStatus = null;
+
+function getDayTasks(o){ return load("tasks_"+getDateStr(o), JSON.parse(JSON.stringify(DEFAULT_TASKS))); }
+function saveDayTasks(o,t){ save("tasks_"+getDateStr(o),t); }
+function getDayChecked(o){ return o>0?{}:load("checked_"+getDateStr(o),{}); }
+function saveDayChecked(o,c){ if(o<=0) save("checked_"+getDateStr(o),c); }
+
+let tasks = getDayTasks(0);
+let checked = getDayChecked(0);
+
+function saveState(){
+  saveDayTasks(dayOffset,tasks);
+  saveDayChecked(dayOffset,checked);
+  if(dayOffset<=0){
+    const earned=getEarned(), dateStr=getDateStr(dayOffset);
+    let history=load("history",[]);
+    const others=history.filter(h=>h.date!==dateStr);
+    save("history",[{date:dateStr,points:earned,completed:Object.values(checked).filter(Boolean).length,total:tasks.length},...others].slice(0,60));
+  }
+}
+
+function changeDay(dir){
+  saveState();
+  dayOffset=Math.max(-30,Math.min(7,dayOffset+dir));
+  tasks=getDayTasks(dayOffset);
+  checked=getDayChecked(dayOffset);
+  renderAll();
+}
+
+function setFilter(f){
+  activeFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderTasks();
+}
+
+function getEarned(){ return dayOffset>0?0:tasks.filter(t=>checked[t.id]).reduce((s,t)=>s+t.points,0); }
+function getTotal(){ return tasks.reduce((s,t)=>s+t.points,0); }
+
+function getDayLabel(o){
+  if(o===0)return"Сегодня";if(o===1)return"Завтра";if(o===-1)return"Вчера";
+  return o>0?`Через ${o} дня`:`${Math.abs(o)} дней назад`;
+}
+
+function updateHeader(){
+  const earned=getEarned(),total=getTotal(),pct=total?Math.round(earned/total*100):0;
+  document.getElementById("earnedPts").textContent=earned;
+  document.getElementById("totalPts").textContent=total;
+  const fill=document.getElementById("progressFill");
+  fill.style.width=pct+"%";
+  fill.className="progress-fill"+(pct===100&&dayOffset<=0?" done":"");
+  document.getElementById("tasksMeta").textContent=`${dayOffset<=0?tasks.filter(t=>checked[t.id]).length:0}/${tasks.length} задач`;
+  document.getElementById("pctMeta").textContent=pct+"%";
+  document.getElementById("dayName").textContent=getDayLabel(dayOffset);
+  const d=new Date();d.setDate(d.getDate()+dayOffset);
+  document.getElementById("dayDate").textContent=d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"});
+  document.getElementById("prevDay").disabled=dayOffset<=-30;
+  document.getElementById("nextDay").disabled=dayOffset>=7;
+  document.getElementById("futureNote").style.display=dayOffset>0?"":"none";
+  const banner=document.getElementById("successBanner");
+  if(pct===100&&tasks.length>0&&dayOffset<=0){banner.classList.add("show");document.getElementById("successSub").textContent=`+${earned} баллов`;}
+  else banner.classList.remove("show");
+}
+
+function getBadgeHtml(priority, status){
+  let html='';
+  const p=PRIORITIES.find(x=>x.id===priority);
+  if(p) html+=`<span class="badge ${p.cls}">${p.label}</span>`;
+  const s=STATUSES.find(x=>x.id===status);
+  if(s) html+=`<span class="badge ${s.cls}">${s.label}</span>`;
+  return html;
+}
+
+function getFilteredTasks(){
+  let list=[...tasks].sort((a,b)=>(PRIORITY_ORDER[a.priority]||3)-(PRIORITY_ORDER[b.priority]||3));
+  if(activeFilter==='all') return list;
+  if(['red','yellow','green'].includes(activeFilter)) return list.filter(t=>t.priority===activeFilter);
+  return list.filter(t=>t.status===activeFilter);
+}
+
+function renderTasks(){
+  const list=document.getElementById("taskList");
+  list.innerHTML="";
+  const filtered=getFilteredTasks();
+  if(!filtered.length){ list.innerHTML='<div class="empty">Нет задач для этого фильтра</div>'; updateHeader(); return; }
+  filtered.forEach(task=>{
+    const done=dayOffset<=0&&!!checked[task.id];
+    const pCls=PRIORITIES.find(x=>x.id===task.priority)?.taskCls||'';
+    const div=document.createElement("div");
+    div.className=`task ${pCls}${done?" checked":""}`;
+    const badges=getBadgeHtml(task.priority,task.status);
+    div.innerHTML=`
+      <div class="checkbox">${done?"✓":""}</div>
+      <div class="task-body">
+        <div class="task-top">
+          <span class="task-emoji">${task.emoji}</span>
+          <span class="task-name">${task.name}</span>
+          <span class="task-points">+${task.points}</span>
+        </div>
+        ${badges?`<div class="task-badges">${badges}</div>`:''}
+      </div>
+      <button class="delete-btn" onclick="deleteTask(event,${task.id})">×</button>
+    `;
+    if(dayOffset<=0) div.addEventListener("click",()=>toggleTask(task.id));
+    list.appendChild(div);
+  });
+  updateHeader();
+}
+
+function renderAll(){ renderTasks(); }
+
+function toggleTask(id){
+  if(dayOffset>0)return;
+  checked[id]=!checked[id];
+  if(!checked[id])delete checked[id];
+  saveState(); renderTasks();
+  if(tg)tg.HapticFeedback?.impactOccurred("light");
+}
+
+function deleteTask(e,id){
+  e.stopPropagation();
+  tasks=tasks.filter(t=>t.id!==id);
+  delete checked[id];
+  saveState(); renderTasks();
+}
+
+function resetDay(){ if(confirm("Сбросить отметки?")){checked={};saveState();renderTasks();} }
+
+let showingForm=false;
+function showAddForm(){
+  if(showingForm)return;
+  showingForm=true;
+  newPriority='green'; newStatus=null;
+  document.getElementById("addSection").innerHTML=`
+    <div class="add-form">
+      <div class="form-row" style="margin-bottom:8px">
+        <input class="emoji-inp" id="nEmoji" value="⭐" maxlength="2">
+        <input id="nName" placeholder="Название задачи" style="flex:1;margin-bottom:0">
+        <input class="pts-inp" id="nPts" type="number" value="10" min="1" style="margin-bottom:0">
+      </div>
+      <div class="form-label">Приоритет</div>
+      <div class="picker-row" id="priorityPicker">
+        ${PRIORITIES.map(p=>`<button class="pick-btn${p.id==='green'?' selected':''}" onclick="pickPriority('${p.id}',this)">${p.label}</button>`).join('')}
+      </div>
+      <div class="form-label">Статус</div>
+      <div class="picker-row" id="statusPicker">
+        <button class="pick-btn selected" onclick="pickStatus(null,this)">— Нет</button>
+        ${STATUSES.map(s=>`<button class="pick-btn" onclick="pickStatus('${s.id}',this)">${s.label}</button>`).join('')}
+      </div>
+      <div class="form-btns">
+        <button class="btn-cancel" onclick="hideAddForm()">Отмена</button>
+        <button class="btn-add" onclick="addTask()">Добавить</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("nName").focus();
+}
+
+function pickPriority(id,el){
+  newPriority=id;
+  document.querySelectorAll("#priorityPicker .pick-btn").forEach(b=>b.classList.remove("selected"));
+  el.classList.add("selected");
+}
+function pickStatus(id,el){
+  newStatus=id;
+  document.querySelectorAll("#statusPicker .pick-btn").forEach(b=>b.classList.remove("selected"));
+  el.classList.add("selected");
+}
+
+function hideAddForm(){
+  showingForm=false;
+  document.getElementById("addSection").innerHTML=`<button class="add-task-btn" onclick="showAddForm()">+ Добавить задачу</button>`;
+}
+
+function addTask(){
+  const name=document.getElementById("nName").value.trim();
+  if(!name)return;
+  tasks.push({id:Date.now(),name,points:parseInt(document.getElementById("nPts").value)||10,emoji:document.getElementById("nEmoji").value||"⭐",priority:newPriority,status:newStatus});
+  saveState(); hideAddForm(); renderTasks();
+}
+
+function switchTab(tab){
+  document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",(i===0&&tab==="today")||(i===1&&tab==="history")));
+  document.getElementById("todayTab").style.display=tab==="today"?"":"none";
+  document.getElementById("historyTab").style.display=tab==="history"?"":"none";
+  if(tab==="history")renderHistory();
+}
+
+function renderHistory(){
+  let history=load("history",[]);
+  for(let i=1;i<=7;i++){
+    const ft=load("tasks_"+getDateStr(i),null);
+    if(ft&&ft.length){const ds=getDateStr(i);if(!history.find(h=>h.date===ds))history=[{date:ds,points:0,completed:0,total:ft.length,future:true},...history];}
+  }
+  history.sort((a,b)=>b.date.localeCompare(a.date));
+  const weekPts=history.filter(h=>!h.future).slice(0,7).reduce((s,h)=>s+h.points,0);
+  document.getElementById("weekTotal").innerHTML=`${weekPts} <span style="font-size:14px;font-weight:400;color:var(--muted)">баллов</span>`;
+  const list=document.getElementById("historyList");
+  if(!history.length){list.innerHTML='<div class="empty">История пуста</div>';return;}
+  list.innerHTML=history.slice(0,20).map(h=>{
+    const isToday=h.date===TODAY,isFuture=h.date>TODAY;
+    const d=new Date(h.date).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
+    const label=isToday?"Сегодня":isFuture?(h.date===getDateStr(1)?"Завтра":d):d;
+    return`<div class="history-item">
+      <div>
+        <div class="history-date${isToday?" today":isFuture?" future":""}">${label}${isFuture?' 📅':''}</div>
+        <div class="history-tasks">${isFuture?`${h.total} задач запланировано`:`${h.completed}/${h.total} задач`}</div>
+      </div>
+      <div>
+        <div class="history-pts">${isFuture?'—':'+'+h.points}</div>
+        <div class="history-pts-label">${isFuture?'план':'баллов'}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+renderAll();
+</script>
+</body>
+</html>
